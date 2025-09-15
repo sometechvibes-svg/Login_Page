@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="hi"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>User Profile</title><link rel="stylesheet" href="assets/style.css"/></head>
+<body><div class="container"><header class="top">
+  <div class="title"><div class="logo"></div><h2>User Profile</h2></div>
+  <a class="btn danger" href="index.html" id="logout">Logout</a>
+</header><div class="grid grid-2">
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <div class="avatar" id="avatar">U</div>
+      <div><h2 id="p_name">—</h2><span class="tag" id="voteStatus">Not Voted</span><p class="small" id="createdAt"></p></div>
+    </div>
+    <div class="kv mt-3">
+      <div class="small">Full Name</div><div id="kv_name">—</div>
+      <div class="small">Email</div><div id="kv_email">—</div>
+      <div class="small">Phone</div><div id="kv_phone">—</div>
+      <div class="small">Voter ID</div><div id="kv_voter">—</div>
+    </div>
+  </div>
+  <div class="card"><h2>Active Event</h2><div id="activeContent" class="small">Loading…</div></div>
+  <div class="card" style="grid-column:1 / -1"><h2>Other Events (Results)</h2><div id="pastContent" class="small">Loading…</div></div>
+</div><footer class="foot">One vote per event • Results stored in your browser</footer></div>
+<script>
+const LS_EVENTS='ov_events', LS_ACTIVE='ov_activeEventId', USERS='ov_users';
+const currentUserId=localStorage.getItem('ov_currentUser')||'';
+function loadEvents(){ return JSON.parse(localStorage.getItem(LS_EVENTS)||'[]'); }
+function saveEvents(v){ localStorage.setItem(LS_EVENTS, JSON.stringify(v)); }
+function getActiveId(){ return localStorage.getItem(LS_ACTIVE); }
+function getUsers(){ return JSON.parse(localStorage.getItem(USERS)||'{}'); }
+function getUserVote(eventId){ const m=JSON.parse(localStorage.getItem('ov_userVotes_'+currentUserId)||'{}'); return m[eventId]; }
+function setUserVote(eventId, idx){ const k='ov_userVotes_'+currentUserId; const m=JSON.parse(localStorage.getItem(k)||'{}'); m[eventId]=idx; localStorage.setItem(k, JSON.stringify(m)); }
+function percent(v,t){ return t>0? Math.round((v/t)*100):0; }
+// Seed events if empty
+(function seed(){ let e=loadEvents(); if(e.length===0){ e=[
+  { id: Date.now(), name:'College President Election', candidates:[{name:'Candidate A',votes:560},{name:'Candidate B',votes:400},{name:'Candidate C',votes:240}] },
+  { id: Date.now()+1, name:'Sports Captain Election', candidates:[{name:'Candidate X',votes:300},{name:'Candidate Y',votes:200}] },
+  { id: Date.now()+2, name:'Cultural Secretary Election', candidates:[{name:'Candidate M',votes:150},{name:'Candidate N',votes:150}] }
+]; saveEvents(e); localStorage.setItem(LS_ACTIVE, String(e[0].id)); } })();
+// Profile render
+(function profile(){
+  const users=getUsers(); const u=users[currentUserId]; if(!u){ window.location.href='user.html'; return; }
+  document.getElementById('p_name').textContent=u.name;
+  document.getElementById('kv_name').textContent=u.name;
+  document.getElementById('kv_email').textContent=u.email;
+  document.getElementById('kv_phone').textContent=u.phone;
+  document.getElementById('kv_voter').textContent=u.voterId;
+  document.getElementById('avatar').textContent=(u.name||'U').charAt(0).toUpperCase();
+  document.getElementById('createdAt').textContent='Joined: '+ new Date(u.createdAt).toLocaleString();
+  document.getElementById('logout').addEventListener('click', ()=>{ localStorage.removeItem('ov_currentUser'); });
+})();
+function render(){
+  const events=loadEvents(); const activeId=getActiveId(); const active=events.find(e=> String(e.id)===String(activeId));
+  const activeBox=document.getElementById('activeContent'); const voteStatus=document.getElementById('voteStatus');
+  if(!active){ activeBox.innerHTML='<em>No active event right now.</em>'; }
+  else{
+    const total=active.candidates.reduce((s,c)=>s+(c.votes||0),0); const myVote=getUserVote(active.id); voteStatus.textContent=myVote!==undefined?'Voted':'Not Voted';
+    let html=`<h3 style="margin-top:0">${active.name}</h3>`;
+    active.candidates.forEach((c,idx)=>{ const p=percent(c.votes||0,total); html+=`
+      <div class="row" style="align-items:center; justify-content:space-between">
+        <div style="flex:1; min-width:220px"><strong>${c.name}</strong>
+          <div class="progress"><div class="bar" style="width:${p}%">${p}%</div></div>
+          <span class="small">${c.votes||0} votes</span>
+        </div>
+        <button class="btn" data-idx="${idx}" ${myVote!==undefined?'disabled':''}>${myVote===idx?'Voted':'Vote'}</button>
+      </div>`; });
+    activeBox.innerHTML=html;
+    activeBox.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(getUserVote(active.id)!==undefined) return;
+        const idx=parseInt(btn.getAttribute('data-idx')); active.candidates[idx].votes=(active.candidates[idx].votes||0)+1;
+        const updated=events.map(e=> e.id===active.id? active : e); saveEvents(updated); setUserVote(active.id, idx); render();
+      });
+    });
+  }
+  const pastWrap=document.getElementById('pastContent'); const others=events.filter(e=> String(e.id)!==String(activeId));
+  if(others.length===0){ pastWrap.innerHTML='<em>No other events.</em>'; return; }
+  pastWrap.innerHTML=others.map(ev=>{
+    const total=ev.candidates.reduce((s,c)=>s+(c.votes||0),0);
+    const block=ev.candidates.map(c=>{ const p=percent(c.votes||0,total); return `<p style="margin:8px 0 4px"><strong>${c.name}</strong></p>
+      <div class="progress"><div class="bar" style="width:${p}%">${p}%</div></div>
+      <span class="small">${c.votes||0} votes</span>`; }).join('');
+    return `<div class="card"><h3 style="margin-top:0">${ev.name}</h3>${block}</div>`;
+  }).join('');
+}
+render();
+</script></body></html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="hi"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>User Login</title><link rel="stylesheet" href="assets/style.css"/></head>
+<body><div class="container" style="max-width:520px"><header class="top">
+  <div class="title"><div class="logo"></div><h2>User Login</h2></div>
+  <a class="btn secondary" href="index.html">Home</a>
+</header><div class="card"><form id="ulogin">
+  <label>Voter ID</label><input id="voterid" required>
+  <label>Password</label><input type="password" id="password" required>
+  <button class="btn block mt-3" type="submit">Login</button>
+</form><p class="small mt-3">New user? <a href="register-user.html">Register here</a></p></div></div>
+<script>
+const USERS='ov_users'; function getUsers(){ return JSON.parse(localStorage.getItem(USERS)||'{}'); }
+document.getElementById('ulogin').addEventListener('submit', function(e){
+  e.preventDefault();
+  const voterId=document.getElementById('voterid').value.trim();
+  const pass=document.getElementById('password').value;
+  const users=getUsers();
+  if(!users[voterId]){ alert('User not found. Please register first.'); return; }
+  if(users[voterId].password!==pass){ alert('Wrong password.'); return; }
+  localStorage.setItem('ov_currentUser', voterId);
+  window.location.href='user-profile.html';
+});
+</script></body></html>

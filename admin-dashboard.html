@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="hi"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Admin Dashboard</title><link rel="stylesheet" href="assets/style.css"/></head>
+<body><div class="container"><header class="top">
+  <div class="title"><div class="logo"></div><h2>Admin Dashboard</h2></div>
+  <div class="row"><a class="btn" href="#" id="addEventBtn">+ New Event</a><a class="btn danger" href="index.html">Logout</a></div>
+</header><div class="grid grid-2">
+  <div class="card"><h2>Overview</h2><div class="row mt-3" style="gap:16px; flex-wrap:wrap">
+    <div class="card" style="flex:1; min-width:180px"><h3>Total Events</h3><p id="statEvents" class="small">—</p></div>
+    <div class="card" style="flex:1; min-width:180px"><h3>Total Votes</h3><p id="statVotes" class="small">—</p></div>
+    <div class="card" style="flex:1; min-width:180px"><h3>Active Event</h3><p id="statActive" class="small">—</p></div>
+  </div></div>
+  <div class="card"><h2>Active Event Switcher</h2><div id="switcher" class="mt-2 small">No events</div></div>
+  <div class="card" style="grid-column:1 / -1"><h2>Events & Results</h2><div id="events">Loading…</div></div>
+</div><footer class="foot">Create multiple events • Set one as Active • Edit results • Stored in LocalStorage</footer></div>
+<div id="overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5)"></div>
+<div id="modal" class="card" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); max-width:520px; width:92%">
+  <h2>Create Event</h2><form id="eventForm">
+    <label>Event Name</label><input id="eventName" required>
+    <label>Candidates (comma separated)</label><input id="candidates" placeholder="Alice, Bob, Charlie" required>
+    <div class="row mt-3" style="justify-content:flex-end"><button type="button" class="btn secondary" id="cancelBtn">Cancel</button><button class="btn" type="submit">Create</button></div>
+  </form>
+</div>
+<script>
+const LS_EVENTS='ov_events', LS_ACTIVE='ov_activeEventId';
+function loadEvents(){ return JSON.parse(localStorage.getItem(LS_EVENTS)||'[]'); }
+function saveEvents(v){ localStorage.setItem(LS_EVENTS, JSON.stringify(v)); render(); }
+function getActiveId(){ return localStorage.getItem(LS_ACTIVE); }
+function setActiveId(id){ localStorage.setItem(LS_ACTIVE, String(id)); render(); }
+function percent(v,t){ return t>0? Math.round((v/t)*100):0; }
+(function seed(){ let events=loadEvents(); if(events.length===0){ events=[
+  { id: Date.now(), name:'College President Election', candidates:[{name:'Candidate A',votes:560},{name:'Candidate B',votes:400},{name:'Candidate C',votes:240}] },
+  { id: Date.now()+1, name:'Sports Captain Election', candidates:[{name:'Candidate X',votes:300},{name:'Candidate Y',votes:200}] },
+  { id: Date.now()+2, name:'Cultural Secretary Election', candidates:[{name:'Candidate M',votes:150},{name:'Candidate N',votes:150}] }
+]; localStorage.setItem(LS_EVENTS, JSON.stringify(events)); localStorage.setItem(LS_ACTIVE, String(events[0].id)); } })();
+function render(){
+  const events=loadEvents(); const activeId=getActiveId();
+  document.getElementById('statEvents').textContent=String(events.length);
+  const totalVotes=events.reduce((s,ev)=> s+ev.candidates.reduce((x,c)=>x+(c.votes||0),0),0);
+  document.getElementById('statVotes').textContent=String(totalVotes);
+  const active=events.find(e=> String(e.id)===String(activeId)); document.getElementById('statActive').textContent=active?active.name:'—';
+  const sw=document.getElementById('switcher');
+  if(events.length===0){ sw.textContent='No events'; } else {
+    sw.innerHTML=events.map(e=>`
+      <label style="display:inline-flex; align-items:center; gap:8px; margin:6px 10px 0 0">
+        <input type="radio" name="active" value="${e.id}" ${String(e.id)===String(activeId)?'checked':''}><span>${e.name}</span>
+      </label>`).join('');
+    sw.querySelectorAll('input[type="radio"]').forEach(r=>{ r.addEventListener('change', ()=> setActiveId(r.value)); });
+  }
+  const wrap=document.getElementById('events'); if(events.length===0){ wrap.innerHTML='<div class="small">Create an event to begin.</div>'; return; }
+  wrap.innerHTML=events.map(ev=>{ const total=ev.candidates.reduce((s,c)=>s+(c.votes||0),0); return `
+    <div class="card" style="margin-top:14px">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <h3 style="margin:0">${ev.name} ${String(ev.id)===String(activeId)?'<span class="tag">ACTIVE</span>':''}</h3>
+        <div class="table-actions">
+          <button class="btn secondary" data-act="rename" data-id="${ev.id}">Rename</button>
+          <button class="btn danger" data-act="delete" data-id="${ev.id}">Delete</button>
+        </div>
+      </div>
+      <table class="table mt-2">
+        <tr><th style="width:35%">Candidate</th><th style="width:20%">Votes</th><th>Progress</th></tr>
+        ${ev.candidates.map((c,idx)=>{ const p=percent(c.votes||0,total); return `<tr>
+          <td>${c.name}</td>
+          <td><input type="number" min="0" value="${c.votes||0}" data-idx="${idx}" style="max-width:110px">
+              <button class="btn secondary" data-act="savevote" data-id="${ev.id}" data-idx="${idx}">Save</button></td>
+          <td><div class="progress"><div class="bar" style="width:${p}%">${p}%</div></div></td></tr>`; }).join('')}
+      </table>
+    </div>`; }).join('');
+  wrap.querySelectorAll('button').forEach(btn=>{
+    const act=btn.getAttribute('data-act'); btn.addEventListener('click', ()=>{
+      const id=btn.getAttribute('data-id'); const events=loadEvents(); const i=events.findIndex(e=> String(e.id)===String(id));
+      if(act==='rename'){ const nn=prompt('New name:', events[i].name); if(nn){ events[i].name=nn; saveEvents(events); } }
+      else if(act==='delete'){ if(confirm('Delete this event?')){ const removed=events[i].id; events.splice(i,1); saveEvents(events); if(String(getActiveId())===String(removed)){ const na=events[0]?events[0].id:''; localStorage.setItem(LS_ACTIVE, String(na)); } render(); } }
+      else if(act==='savevote'){ const idx=parseInt(btn.getAttribute('data-idx')); const input=btn.parentElement.querySelector('input'); events[i].candidates[idx].votes=Math.max(0, parseInt(input.value||'0')); saveEvents(events); }
+    });
+  });
+}
+const overlay=document.getElementById('overlay'); const modal=document.getElementById('modal');
+document.getElementById('addEventBtn').addEventListener('click', (e)=>{ e.preventDefault(); overlay.style.display='block'; modal.style.display='block'; });
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+overlay.addEventListener('click', closeModal);
+function closeModal(){ overlay.style.display='none'; modal.style.display='none'; document.getElementById('eventForm').reset(); }
+document.getElementById('eventForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const name=document.getElementById('eventName').value.trim();
+  const raw=document.getElementById('candidates').value.trim();
+  if(!name||!raw) return;
+  const list=raw.split(',').map(s=>({name:s.trim(), votes:0})).filter(c=>c.name);
+  const events=loadEvents(); const id=Date.now(); events.push({ id, name, candidates:list });
+  saveEvents(events); if(!getActiveId()) setActiveId(id); closeModal();
+});
+render();
+</script></body></html>
